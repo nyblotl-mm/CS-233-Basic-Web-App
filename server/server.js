@@ -24,6 +24,10 @@ const recipes = [];
 // Restaurant shape: { id, name, priceRange, requiresReservation }
 const restaurants = [];
 
+// In-memory gum brands store
+// Gum brand shape: { id, brand, flavor, price }
+const gumBrands = [];
+
 app.get("/api", (req, res) => {
     res.json({fruits: ["apple", "strawberry", "banana"]});
 })
@@ -140,6 +144,67 @@ app.delete('/restaurants/:id', (req, res) => {
     if (index === -1) return res.status(404).json({ error: 'restaurant not found' });
 
     const removed = restaurants.splice(index, 1)[0];
+    res.json({ success: true, removed });
+});
+
+// --- Gum Brands API ---
+
+// Return all gum brands
+app.get('/gum-brands', (req, res) => {
+    res.json({ gumBrands });
+});
+
+// Create a new gum brand
+app.post('/gum-brands', (req, res) => {
+    const { brand, flavor, price } = req.body;
+    if (!brand || !flavor || !price) {
+        return res.status(400).json({ error: 'brand, flavor and price are required' });
+    }
+
+    // Convert price to number if string provided
+    const priceNum = typeof price === 'number' ? price : Number(price);
+    if (isNaN(priceNum)) {
+        return res.status(400).json({ error: 'price must be a valid number' });
+    }
+
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const gumBrand = { id, brand, flavor, price: priceNum };
+    gumBrands.push(gumBrand);
+
+    res.status(201).json(gumBrand);
+});
+
+// Update a gum brand
+app.put('/gum-brands/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const index = gumBrands.findIndex(g => Number(g.id) === id);
+    if (index === -1) return res.status(404).json({ error: 'gum brand not found' });
+
+    const { brand, flavor, price } = req.body;
+    if (!brand && !flavor && typeof price === 'undefined') {
+        return res.status(400).json({ error: 'provide at least one of brand, flavor or price to update' });
+    }
+
+    if (brand) gumBrands[index].brand = brand;
+    if (flavor) gumBrands[index].flavor = flavor;
+    if (typeof price !== 'undefined') {
+        const priceNum = typeof price === 'number' ? price : Number(price);
+        if (isNaN(priceNum)) {
+            return res.status(400).json({ error: 'price must be a valid number' });
+        }
+        gumBrands[index].price = priceNum;
+    }
+
+    res.json(gumBrands[index]);
+});
+
+// Delete a gum brand
+app.delete('/gum-brands/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const index = gumBrands.findIndex(g => Number(g.id) === id);
+    if (index === -1) return res.status(404).json({ error: 'gum brand not found' });
+
+    const removed = gumBrands.splice(index, 1)[0];
     res.json({ success: true, removed });
 });
 // Default homepage

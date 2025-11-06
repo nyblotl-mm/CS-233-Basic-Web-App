@@ -17,6 +17,11 @@ function App() {
   const [restaurantName, setRestaurantName] = useState('');
   const [restaurantPriceRange, setRestaurantPriceRange] = useState('');
   const [restaurantRequiresReservation, setRestaurantRequiresReservation] = useState(false);
+  // Gum Brands
+  const [gumBrands, setGumBrands] = useState([]);
+  const [gumBrand, setGumBrand] = useState('');
+  const [gumFlavor, setGumFlavor] = useState('');
+  const [gumPrice, setGumPrice] = useState('');
 
   const addTodo = (todo) => {
     const newTodo = {
@@ -50,10 +55,20 @@ function App() {
       console.error('Failed to fetch restaurants', err);
     }
   };
+
+  const fetchGumBrands = async () => {
+    try {
+      const res = await axios.get('http://localhost:3000/gum-brands');
+      setGumBrands(res.data.gumBrands || []);
+    } catch (err) {
+      console.error('Failed to fetch gum brands', err);
+    }
+  };
   useEffect(() => {
     fetchAPI();
     fetchRecipes();
     fetchRestaurants();
+    fetchGumBrands();
   }, []);
 
   const deleteTodo = (id) => {
@@ -140,6 +155,69 @@ function App() {
       cancelEditingRestaurant();
     } catch (err) {
       console.error('Failed to save restaurant edit', err);
+    }
+  };
+
+  // Gum brand handlers
+  const addGumBrand = async () => {
+    if (!gumBrand || !gumFlavor || !gumPrice) return;
+    const payload = {
+      brand: gumBrand,
+      flavor: gumFlavor,
+      price: Number(gumPrice),
+    };
+    try {
+      const res = await axios.post('http://localhost:3000/gum-brands', payload);
+      setGumBrands([...gumBrands, res.data]);
+      setGumBrand('');
+      setGumFlavor('');
+      setGumPrice('');
+    } catch (err) {
+      console.error('Failed to add gum brand', err);
+    }
+  };
+
+  const deleteGumBrand = async (id) => {
+    try {
+      await axios.delete(`http://localhost:3000/gum-brands/${id}`);
+      setGumBrands(gumBrands.filter(g => g.id !== id));
+    } catch (err) {
+      console.error('Failed to delete gum brand', err);
+    }
+  };
+
+  // Gum brand editing state
+  const [editingGumId, setEditingGumId] = useState(null);
+  const [editGumBrand, setEditGumBrand] = useState('');
+  const [editGumFlavor, setEditGumFlavor] = useState('');
+  const [editGumPrice, setEditGumPrice] = useState('');
+
+  const startEditingGum = (g) => {
+    setEditingGumId(g.id);
+    setEditGumBrand(g.brand || '');
+    setEditGumFlavor(g.flavor || '');
+    setEditGumPrice(g.price?.toString() || '');
+  };
+
+  const cancelEditingGum = () => {
+    setEditingGumId(null);
+    setEditGumBrand('');
+    setEditGumFlavor('');
+    setEditGumPrice('');
+  };
+
+  const saveGumEdit = async (id) => {
+    const payload = {
+      brand: editGumBrand,
+      flavor: editGumFlavor,
+      price: Number(editGumPrice),
+    };
+    try {
+      const res = await axios.put(`http://localhost:3000/gum-brands/${id}`, payload);
+      setGumBrands(gumBrands.map(g => g.id === id ? res.data : g));
+      cancelEditingGum();
+    } catch (err) {
+      console.error('Failed to save gum brand edit', err);
     }
   };
 
@@ -273,6 +351,53 @@ function App() {
                   <div>
                     <button onClick={() => startEditingRestaurant(r)}>Edit</button>
                     <button onClick={() => deleteRestaurant(r.id)}>Delete</button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+      
+      <section style={{marginTop: '1.5rem'}}>
+        <h2>Gum Brands</h2>
+
+        <div style={{marginBottom: '1rem'}}>
+          <input placeholder="Brand" value={gumBrand} onChange={e => setGumBrand(e.target.value)} />
+          <input placeholder="Flavor" value={gumFlavor} onChange={e => setGumFlavor(e.target.value)} />
+          <input 
+            placeholder="Price" 
+            type="number" 
+            step="0.01" 
+            value={gumPrice} 
+            onChange={e => setGumPrice(e.target.value)} 
+          />
+          <button onClick={addGumBrand}>Add Gum Brand</button>
+        </div>
+
+        {gumBrands.length === 0 && <p>No gum brands yet.</p>}
+        <ul>
+          {gumBrands.map(g => (
+            <li key={g.id} style={{marginBottom: '0.5rem'}}>
+              {editingGumId === g.id ? (
+                <div>
+                  <input value={editGumBrand} onChange={e => setEditGumBrand(e.target.value)} />
+                  <input value={editGumFlavor} onChange={e => setEditGumFlavor(e.target.value)} />
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={editGumPrice} 
+                    onChange={e => setEditGumPrice(e.target.value)} 
+                  />
+                  <button onClick={() => saveGumEdit(g.id)}>Save</button>
+                  <button onClick={cancelEditingGum}>Cancel</button>
+                </div>
+              ) : (
+                <div>
+                  <strong>{g.brand}</strong> — {g.flavor} — ${g.price.toFixed(2)}
+                  <div>
+                    <button onClick={() => startEditingGum(g)}>Edit</button>
+                    <button onClick={() => deleteGumBrand(g.id)}>Delete</button>
                   </div>
                 </div>
               )}
