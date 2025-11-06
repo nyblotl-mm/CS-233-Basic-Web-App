@@ -12,6 +12,11 @@ function App() {
   const [recipeName, setRecipeName] = useState("");
   const [recipeIngredients, setRecipeIngredients] = useState("");
   const [recipeCookTime, setRecipeCookTime] = useState("");
+  // Restaurants
+  const [restaurants, setRestaurants] = useState([]);
+  const [restaurantName, setRestaurantName] = useState('');
+  const [restaurantPriceRange, setRestaurantPriceRange] = useState('');
+  const [restaurantRequiresReservation, setRestaurantRequiresReservation] = useState(false);
 
   const addTodo = (todo) => {
     const newTodo = {
@@ -37,9 +42,18 @@ function App() {
       console.error('Failed to fetch recipes', err);
     }
   };
+  const fetchRestaurants = async () => {
+    try {
+      const res = await axios.get('http://localhost:3000/restaurants');
+      setRestaurants(res.data.restaurants || []);
+    } catch (err) {
+      console.error('Failed to fetch restaurants', err);
+    }
+  };
   useEffect(() => {
     fetchAPI();
     fetchRecipes();
+    fetchRestaurants();
   }, []);
 
   const deleteTodo = (id) => {
@@ -64,6 +78,68 @@ function App() {
       setRecipeCookTime('');
     } catch (err) {
       console.error('Failed to add recipe', err);
+    }
+  };
+
+  const addRestaurant = async () => {
+    if (!restaurantName || !restaurantPriceRange) return;
+    const payload = {
+      name: restaurantName,
+      priceRange: restaurantPriceRange,
+      requiresReservation: restaurantRequiresReservation,
+    };
+    try {
+      const res = await axios.post('http://localhost:3000/restaurants', payload);
+      setRestaurants([...restaurants, res.data]);
+      setRestaurantName('');
+      setRestaurantPriceRange('');
+      setRestaurantRequiresReservation(false);
+    } catch (err) {
+      console.error('Failed to add restaurant', err);
+    }
+  };
+
+  const deleteRestaurant = async (id) => {
+    try {
+      await axios.delete(`http://localhost:3000/restaurants/${id}`);
+      setRestaurants(restaurants.filter(r => r.id !== id));
+    } catch (err) {
+      console.error('Failed to delete restaurant', err);
+    }
+  };
+
+  // Restaurant editing state
+  const [editingRestaurantId, setEditingRestaurantId] = useState(null);
+  const [editRestaurantName, setEditRestaurantName] = useState('');
+  const [editRestaurantPriceRange, setEditRestaurantPriceRange] = useState('');
+  const [editRestaurantRequiresReservation, setEditRestaurantRequiresReservation] = useState(false);
+
+  const startEditingRestaurant = (r) => {
+    setEditingRestaurantId(r.id);
+    setEditRestaurantName(r.name || '');
+    setEditRestaurantPriceRange(r.priceRange || '');
+    setEditRestaurantRequiresReservation(Boolean(r.requiresReservation));
+  };
+
+  const cancelEditingRestaurant = () => {
+    setEditingRestaurantId(null);
+    setEditRestaurantName('');
+    setEditRestaurantPriceRange('');
+    setEditRestaurantRequiresReservation(false);
+  };
+
+  const saveRestaurantEdit = async (id) => {
+    const payload = {
+      name: editRestaurantName,
+      priceRange: editRestaurantPriceRange,
+      requiresReservation: editRestaurantRequiresReservation,
+    };
+    try {
+      const res = await axios.put(`http://localhost:3000/restaurants/${id}`, payload);
+      setRestaurants(restaurants.map(r => r.id === id ? res.data : r));
+      cancelEditingRestaurant();
+    } catch (err) {
+      console.error('Failed to save restaurant edit', err);
     }
   };
 
@@ -159,6 +235,45 @@ function App() {
                   <div>Ingredients: {Array.isArray(r.ingredients) ? r.ingredients.join(', ') : r.ingredients}</div>
                   <button onClick={() => startEditing(r)}>Edit</button>
                   <button onClick={() => deleteRecipe(r.id)}>Delete</button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section style={{marginTop: '1.5rem'}}>
+        <h2>Restaurants</h2>
+
+        <div style={{marginBottom: '1rem'}}>
+          <input placeholder="Name" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} />
+          <input placeholder="Price range (e.g. $, $$, $$$)" value={restaurantPriceRange} onChange={e => setRestaurantPriceRange(e.target.value)} />
+          <label style={{marginLeft: '0.5rem'}}>
+            <input type="checkbox" checked={restaurantRequiresReservation} onChange={e => setRestaurantRequiresReservation(e.target.checked)} /> Requires reservation
+          </label>
+          <button onClick={addRestaurant}>Add Restaurant</button>
+        </div>
+
+        {restaurants.length === 0 && <p>No restaurants yet.</p>}
+        <ul>
+          {restaurants.map(r => (
+            <li key={r.id} style={{marginBottom: '0.5rem'}}>
+              {editingRestaurantId === r.id ? (
+                <div>
+                  <input value={editRestaurantName} onChange={e => setEditRestaurantName(e.target.value)} />
+                  <input value={editRestaurantPriceRange} onChange={e => setEditRestaurantPriceRange(e.target.value)} />
+                  <label style={{marginLeft: '0.5rem'}}>
+                    <input type="checkbox" checked={editRestaurantRequiresReservation} onChange={e => setEditRestaurantRequiresReservation(e.target.checked)} /> Requires reservation
+                  </label>
+                  <button onClick={() => saveRestaurantEdit(r.id)}>Save</button>
+                  <button onClick={cancelEditingRestaurant}>Cancel</button>
+                </div>
+              ) : (
+                <div>
+                  <strong>{r.name}</strong> — {r.priceRange} — {r.requiresReservation ? 'Requires reservation' : 'No reservation needed'}
+                  <div>
+                    <button onClick={() => startEditingRestaurant(r)}>Edit</button>
+                    <button onClick={() => deleteRestaurant(r.id)}>Delete</button>
+                  </div>
                 </div>
               )}
             </li>

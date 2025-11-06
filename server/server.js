@@ -20,6 +20,10 @@ app.use((req, res, next) => {
 // Recipe shape: { id, name, ingredients: [...], cookTime }
 const recipes = [];
 
+// In-memory restaurant store
+// Restaurant shape: { id, name, priceRange, requiresReservation }
+const restaurants = [];
+
 app.get("/api", (req, res) => {
     res.json({fruits: ["apple", "strawberry", "banana"]});
 })
@@ -78,6 +82,64 @@ app.delete('/recipes/:id', (req, res) => {
     if (index === -1) return res.status(404).json({ error: 'recipe not found' });
 
     const removed = recipes.splice(index, 1)[0];
+    res.json({ success: true, removed });
+});
+
+// --- Restaurants API (similar to recipes) ---
+
+// Return all restaurants
+app.get('/restaurants', (req, res) => {
+    res.json({ restaurants });
+});
+
+// Create a new restaurant
+app.post('/restaurants', (req, res) => {
+    const { name, priceRange, requiresReservation } = req.body;
+    if (!name || !priceRange || typeof requiresReservation === 'undefined') {
+        return res.status(400).json({ error: 'name, priceRange and requiresReservation are required' });
+    }
+
+    // Normalize boolean values that might be strings
+    const requires = (typeof requiresReservation === 'boolean')
+        ? requiresReservation
+        : String(requiresReservation).toLowerCase() === 'true';
+
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const restaurant = { id, name, priceRange, requiresReservation: requires };
+    restaurants.push(restaurant);
+
+    res.status(201).json(restaurant);
+});
+
+// Update a restaurant
+app.put('/restaurants/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const index = restaurants.findIndex(r => Number(r.id) === id);
+    if (index === -1) return res.status(404).json({ error: 'restaurant not found' });
+
+    const { name, priceRange, requiresReservation } = req.body;
+    if (!name && !priceRange && typeof requiresReservation === 'undefined') {
+        return res.status(400).json({ error: 'provide at least one of name, priceRange or requiresReservation to update' });
+    }
+
+    if (name) restaurants[index].name = name;
+    if (priceRange) restaurants[index].priceRange = priceRange;
+    if (typeof requiresReservation !== 'undefined') {
+        restaurants[index].requiresReservation = (typeof requiresReservation === 'boolean')
+            ? requiresReservation
+            : String(requiresReservation).toLowerCase() === 'true';
+    }
+
+    res.json(restaurants[index]);
+});
+
+// Delete a restaurant
+app.delete('/restaurants/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const index = restaurants.findIndex(r => Number(r.id) === id);
+    if (index === -1) return res.status(404).json({ error: 'restaurant not found' });
+
+    const removed = restaurants.splice(index, 1)[0];
     res.json({ success: true, removed });
 });
 // Default homepage
