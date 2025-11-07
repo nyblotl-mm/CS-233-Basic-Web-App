@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import axios from 'axios'
+import * as api from './api'
 
 function App() {
   const [count, setCount] = useState(0);
@@ -35,13 +35,13 @@ function App() {
   };
 
   const fetchAPI = async () => {
-    const response = await axios.get("http://localhost:3000/api");
+    const response = await api.getFruits();
     setArray(response.data.fruits);
     console.log(response.data.fruits);
   };
   const fetchRecipes = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/recipes');
+      const res = await api.getRecipes();
       setRecipes(res.data.recipes || []);
     } catch (err) {
       console.error('Failed to fetch recipes', err);
@@ -49,7 +49,7 @@ function App() {
   };
   const fetchRestaurants = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/restaurants');
+      const res = await api.getRestaurants();
       setRestaurants(res.data.restaurants || []);
     } catch (err) {
       console.error('Failed to fetch restaurants', err);
@@ -58,7 +58,7 @@ function App() {
 
   const fetchGumBrands = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/gum-brands');
+      const res = await api.getGumBrands();
       setGumBrands(res.data.gumBrands || []);
     } catch (err) {
       console.error('Failed to fetch gum brands', err);
@@ -86,7 +86,7 @@ function App() {
     };
 
     try {
-      const res = await axios.post('http://localhost:3000/recipes', payload);
+      const res = await api.createRecipe(payload);
       setRecipes([...recipes, res.data]);
       setRecipeName('');
       setRecipeIngredients('');
@@ -104,7 +104,7 @@ function App() {
       requiresReservation: restaurantRequiresReservation,
     };
     try {
-      const res = await axios.post('http://localhost:3000/restaurants', payload);
+      const res = await api.createRestaurant(payload);
       setRestaurants([...restaurants, res.data]);
       setRestaurantName('');
       setRestaurantPriceRange('');
@@ -116,7 +116,7 @@ function App() {
 
   const deleteRestaurant = async (id) => {
     try {
-      await axios.delete(`http://localhost:3000/restaurants/${id}`);
+      await api.deleteRestaurant(id);
       setRestaurants(restaurants.filter(r => r.id !== id));
     } catch (err) {
       console.error('Failed to delete restaurant', err);
@@ -150,7 +150,7 @@ function App() {
       requiresReservation: editRestaurantRequiresReservation,
     };
     try {
-      const res = await axios.put(`http://localhost:3000/restaurants/${id}`, payload);
+      const res = await api.updateRestaurant(id, payload);
       setRestaurants(restaurants.map(r => r.id === id ? res.data : r));
       cancelEditingRestaurant();
     } catch (err) {
@@ -167,7 +167,7 @@ function App() {
       price: Number(gumPrice),
     };
     try {
-      const res = await axios.post('http://localhost:3000/gum-brands', payload);
+      const res = await api.createGumBrand(payload);
       setGumBrands([...gumBrands, res.data]);
       setGumBrand('');
       setGumFlavor('');
@@ -179,7 +179,7 @@ function App() {
 
   const deleteGumBrand = async (id) => {
     try {
-      await axios.delete(`http://localhost:3000/gum-brands/${id}`);
+      await api.deleteGumBrand(id);
       setGumBrands(gumBrands.filter(g => g.id !== id));
     } catch (err) {
       console.error('Failed to delete gum brand', err);
@@ -213,7 +213,7 @@ function App() {
       price: Number(editGumPrice),
     };
     try {
-      const res = await axios.put(`http://localhost:3000/gum-brands/${id}`, payload);
+      const res = await api.updateGumBrand(id, payload);
       setGumBrands(gumBrands.map(g => g.id === id ? res.data : g));
       cancelEditingGum();
     } catch (err) {
@@ -223,7 +223,7 @@ function App() {
 
   const deleteRecipe = async (id) => {
     try {
-      await axios.delete(`http://localhost:3000/recipes/${id}`);
+      await api.deleteRecipe(id);
       setRecipes(recipes.filter(r => r.id !== id));
     } catch (err) {
       console.error('Failed to delete recipe', err);
@@ -257,7 +257,7 @@ function App() {
       cookTime: editCookTime,
     };
     try {
-      const res = await axios.put(`http://localhost:3000/recipes/${id}`, payload);
+      const res = await api.updateRecipe(id, payload);
       setRecipes(recipes.map(r => r.id === id ? res.data : r));
       cancelEditing();
     } catch (err) {
