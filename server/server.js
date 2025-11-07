@@ -16,196 +16,282 @@ app.use((req, res, next) => {
     next();
 });
 
-// In-memory recipe store (no DB for this exercise)
-// Recipe shape: { id, name, ingredients: [...], cookTime }
-const recipes = [];
+// Import Sequelize models
+const { Recipe, Restaurant, GumBrand, sequelize } = require('./models');
 
-// In-memory restaurant store
-// Restaurant shape: { id, name, priceRange, requiresReservation }
-const restaurants = [];
+// Initialize database and sync models
+(async () => {
+    try {
+        // Test the connection
+        await sequelize.authenticate();
+        console.log('Database connection established successfully.');
 
-// In-memory gum brands store
-// Gum brand shape: { id, brand, flavor, price }
-const gumBrands = [];
+        // Create tables if they don't exist
+        await sequelize.sync();
+        console.log('Database synchronized');
+    } catch (err) {
+        console.error('Unable to connect to the database:', err);
+        process.exit(1); // Exit if we can't connect to the database
+    }
+})();
 
 app.get("/api", (req, res) => {
     res.json({fruits: ["apple", "strawberry", "banana"]});
 })
 
 // Return all recipes
-app.get('/recipes', (req, res) => {
-    res.json({ recipes });
+app.get('/recipes', async (req, res) => {
+    try {
+        const recipes = await Recipe.findAll();
+        res.json({ recipes });
+    } catch (err) {
+        console.error('Error fetching recipes:', err);
+        res.status(500).json({ error: 'Failed to fetch recipes' });
+    }
 });
 
 // Create a new recipe
-app.post('/recipes', (req, res) => {
+app.post('/recipes', async (req, res) => {
     const { name, ingredients, cookTime } = req.body;
     if (!name || !ingredients || !cookTime) {
         return res.status(400).json({ error: 'name, ingredients and cookTime are required' });
     }
 
-    // Accept ingredients as array or comma-separated string
-    const ingArray = Array.isArray(ingredients)
-        ? ingredients
-        : String(ingredients).split(',').map(s => s.trim()).filter(Boolean);
+    try {
+        // Normalize ingredients to array
+        const ingArray = Array.isArray(ingredients)
+            ? ingredients
+            : String(ingredients).split(',').map(s => s.trim()).filter(Boolean);
 
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    const recipe = { id, name, ingredients: ingArray, cookTime };
-    recipes.push(recipe);
+        const recipe = await Recipe.create({
+            name,
+            ingredients: ingArray,
+            cookTime
+        });
 
-    res.status(201).json(recipe);
+        res.status(201).json(recipe);
+    } catch (err) {
+        console.error('Error creating recipe:', err);
+        res.status(500).json({ error: 'Failed to create recipe' });
+    }
 });
 
 // Update an existing recipe
-app.put('/recipes/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = recipes.findIndex(r => Number(r.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'recipe not found' });
-
+app.put('/recipes/:id', async (req, res) => {
+    const { id } = req.params;
     const { name, ingredients, cookTime } = req.body;
+    
     if (!name && !ingredients && !cookTime) {
         return res.status(400).json({ error: 'provide at least one of name, ingredients or cookTime to update' });
     }
 
-    if (name) recipes[index].name = name;
-    if (cookTime) recipes[index].cookTime = cookTime;
-    if (ingredients) {
-        const ingArray = Array.isArray(ingredients)
-            ? ingredients
-            : String(ingredients).split(',').map(s => s.trim()).filter(Boolean);
-        recipes[index].ingredients = ingArray;
-    }
+    try {
+        const recipe = await Recipe.findByPk(id);
+        if (!recipe) {
+            return res.status(404).json({ error: 'recipe not found' });
+        }
 
-    res.json(recipes[index]);
+        const updates = {};
+        if (name) updates.name = name;
+        if (cookTime) updates.cookTime = cookTime;
+        if (ingredients) {
+            updates.ingredients = Array.isArray(ingredients)
+                ? ingredients
+                : String(ingredients).split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        await recipe.update(updates);
+        res.json(recipe);
+    } catch (err) {
+        console.error('Error updating recipe:', err);
+        res.status(500).json({ error: 'Failed to update recipe' });
+    }
 });
 
 // Delete a recipe
-app.delete('/recipes/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = recipes.findIndex(r => Number(r.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'recipe not found' });
+app.delete('/recipes/:id', async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        const recipe = await Recipe.findByPk(id);
+        if (!recipe) {
+            return res.status(404).json({ error: 'recipe not found' });
+        }
 
-    const removed = recipes.splice(index, 1)[0];
-    res.json({ success: true, removed });
+        await recipe.destroy();
+        res.json({ success: true, removed: recipe });
+    } catch (err) {
+        console.error('Error deleting recipe:', err);
+        res.status(500).json({ error: 'Failed to delete recipe' });
+    }
 });
 
 // --- Restaurants API (similar to recipes) ---
 
 // Return all restaurants
-app.get('/restaurants', (req, res) => {
-    res.json({ restaurants });
+app.get('/restaurants', async (req, res) => {
+    try {
+        const restaurants = await Restaurant.findAll();
+        res.json({ restaurants });
+    } catch (err) {
+        console.error('Error fetching restaurants:', err);
+        res.status(500).json({ error: 'Failed to fetch restaurants' });
+    }
 });
 
 // Create a new restaurant
-app.post('/restaurants', (req, res) => {
+app.post('/restaurants', async (req, res) => {
     const { name, priceRange, requiresReservation } = req.body;
     if (!name || !priceRange || typeof requiresReservation === 'undefined') {
         return res.status(400).json({ error: 'name, priceRange and requiresReservation are required' });
     }
 
-    // Normalize boolean values that might be strings
-    const requires = (typeof requiresReservation === 'boolean')
-        ? requiresReservation
-        : String(requiresReservation).toLowerCase() === 'true';
+    try {
+        const restaurant = await Restaurant.create({
+            name,
+            priceRange,
+            requiresReservation: Boolean(requiresReservation)
+        });
 
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    const restaurant = { id, name, priceRange, requiresReservation: requires };
-    restaurants.push(restaurant);
-
-    res.status(201).json(restaurant);
+        res.status(201).json(restaurant);
+    } catch (err) {
+        console.error('Error creating restaurant:', err);
+        res.status(500).json({ error: 'Failed to create restaurant' });
+    }
 });
 
 // Update a restaurant
-app.put('/restaurants/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = restaurants.findIndex(r => Number(r.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'restaurant not found' });
-
+app.put('/restaurants/:id', async (req, res) => {
+    const { id } = req.params;
     const { name, priceRange, requiresReservation } = req.body;
+    
     if (!name && !priceRange && typeof requiresReservation === 'undefined') {
         return res.status(400).json({ error: 'provide at least one of name, priceRange or requiresReservation to update' });
     }
 
-    if (name) restaurants[index].name = name;
-    if (priceRange) restaurants[index].priceRange = priceRange;
-    if (typeof requiresReservation !== 'undefined') {
-        restaurants[index].requiresReservation = (typeof requiresReservation === 'boolean')
-            ? requiresReservation
-            : String(requiresReservation).toLowerCase() === 'true';
-    }
+    try {
+        const restaurant = await Restaurant.findByPk(id);
+        if (!restaurant) {
+            return res.status(404).json({ error: 'restaurant not found' });
+        }
 
-    res.json(restaurants[index]);
+        const updates = {};
+        if (name) updates.name = name;
+        if (priceRange) updates.priceRange = priceRange;
+        if (typeof requiresReservation !== 'undefined') {
+            updates.requiresReservation = Boolean(requiresReservation);
+        }
+
+        await restaurant.update(updates);
+        res.json(restaurant);
+    } catch (err) {
+        console.error('Error updating restaurant:', err);
+        res.status(500).json({ error: 'Failed to update restaurant' });
+    }
 });
 
 // Delete a restaurant
-app.delete('/restaurants/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = restaurants.findIndex(r => Number(r.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'restaurant not found' });
+app.delete('/restaurants/:id', async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        const restaurant = await Restaurant.findByPk(id);
+        if (!restaurant) {
+            return res.status(404).json({ error: 'restaurant not found' });
+        }
 
-    const removed = restaurants.splice(index, 1)[0];
-    res.json({ success: true, removed });
+        await restaurant.destroy();
+        res.json({ success: true, removed: restaurant });
+    } catch (err) {
+        console.error('Error deleting restaurant:', err);
+        res.status(500).json({ error: 'Failed to delete restaurant' });
+    }
 });
 
 // --- Gum Brands API ---
 
 // Return all gum brands
-app.get('/gum-brands', (req, res) => {
-    res.json({ gumBrands });
+app.get('/gum-brands', async (req, res) => {
+    try {
+        const gumBrands = await GumBrand.findAll();
+        res.json({ gumBrands });
+    } catch (err) {
+        console.error('Error fetching gum brands:', err);
+        res.status(500).json({ error: 'Failed to fetch gum brands' });
+    }
 });
 
 // Create a new gum brand
-app.post('/gum-brands', (req, res) => {
+app.post('/gum-brands', async (req, res) => {
     const { brand, flavor, price } = req.body;
     if (!brand || !flavor || !price) {
         return res.status(400).json({ error: 'brand, flavor and price are required' });
     }
 
-    // Convert price to number if string provided
-    const priceNum = typeof price === 'number' ? price : Number(price);
-    if (isNaN(priceNum)) {
-        return res.status(400).json({ error: 'price must be a valid number' });
+    try {
+        const gumBrand = await GumBrand.create({
+            brand,
+            flavor,
+            price: Number(price)
+        });
+
+        res.status(201).json(gumBrand);
+    } catch (err) {
+        console.error('Error creating gum brand:', err);
+        res.status(500).json({ error: 'Failed to create gum brand' });
     }
-
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    const gumBrand = { id, brand, flavor, price: priceNum };
-    gumBrands.push(gumBrand);
-
-    res.status(201).json(gumBrand);
 });
 
 // Update a gum brand
-app.put('/gum-brands/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = gumBrands.findIndex(g => Number(g.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'gum brand not found' });
-
+app.put('/gum-brands/:id', async (req, res) => {
+    const { id } = req.params;
     const { brand, flavor, price } = req.body;
+    
     if (!brand && !flavor && typeof price === 'undefined') {
         return res.status(400).json({ error: 'provide at least one of brand, flavor or price to update' });
     }
 
-    if (brand) gumBrands[index].brand = brand;
-    if (flavor) gumBrands[index].flavor = flavor;
-    if (typeof price !== 'undefined') {
-        const priceNum = typeof price === 'number' ? price : Number(price);
-        if (isNaN(priceNum)) {
-            return res.status(400).json({ error: 'price must be a valid number' });
+    try {
+        const gumBrand = await GumBrand.findByPk(id);
+        if (!gumBrand) {
+            return res.status(404).json({ error: 'gum brand not found' });
         }
-        gumBrands[index].price = priceNum;
-    }
 
-    res.json(gumBrands[index]);
+        const updates = {};
+        if (brand) updates.brand = brand;
+        if (flavor) updates.flavor = flavor;
+        if (typeof price !== 'undefined') {
+            const priceNum = Number(price);
+            if (isNaN(priceNum)) {
+                return res.status(400).json({ error: 'price must be a valid number' });
+            }
+            updates.price = priceNum;
+        }
+
+        await gumBrand.update(updates);
+        res.json(gumBrand);
+    } catch (err) {
+        console.error('Error updating gum brand:', err);
+        res.status(500).json({ error: 'Failed to update gum brand' });
+    }
 });
 
 // Delete a gum brand
-app.delete('/gum-brands/:id', (req, res) => {
-    const id = Number(req.params.id);
-    const index = gumBrands.findIndex(g => Number(g.id) === id);
-    if (index === -1) return res.status(404).json({ error: 'gum brand not found' });
+app.delete('/gum-brands/:id', async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        const gumBrand = await GumBrand.findByPk(id);
+        if (!gumBrand) {
+            return res.status(404).json({ error: 'gum brand not found' });
+        }
 
-    const removed = gumBrands.splice(index, 1)[0];
-    res.json({ success: true, removed });
+        await gumBrand.destroy();
+        res.json({ success: true, removed: gumBrand });
+    } catch (err) {
+        console.error('Error deleting gum brand:', err);
+        res.status(500).json({ error: 'Failed to delete gum brand' });
+    }
 });
 // Default homepage
 app.get('/', (req,res) => {
